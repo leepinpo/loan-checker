@@ -20,21 +20,9 @@ export type LoanResult = {
   maxLoan: number;
   propertyLoan: number;
   propertyInstallment: number;
-  status: "HIGH" | "BORDERLINE" | "LOW";
-};
-
-export type LoanResult = {
-  netIncome: number;
-  maxInstallment: number;
-  maxLoan: number;
-
-  propertyLoan: number;
-  propertyInstallment: number;
-
   tenureYears: number;
   interestRate: number;
   dsrLimit: number;
-
   confidence: number;
   status: "HIGH" | "BORDERLINE" | "LOW";
 };

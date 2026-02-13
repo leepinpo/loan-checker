@@ -13,29 +13,31 @@ export function calculateProfile(
     0
   );
 
-  const netIncome = customer.grossIncome - totalDeductions;
+  const netIncome = Math.max(0, customer.grossIncome - totalDeductions);
 
-  const tenureYears = Math.min(35, 70 - customer.age);
+  const tenureYears = Math.max(1, Math.min(35, 70 - customer.age));
   const months = tenureYears * 12;
 
   const maxInstallment = netIncome * DSR;
   const maxLoan = installmentToLoan(maxInstallment, RATE, months);
 
   const propertyLoan = property.spaPrice * property.margin;
-  
+
   const propertyInstallment = loanToInstallment(
     propertyLoan,
     RATE,
     months
   );
 
-  const ratio = propertyInstallment / maxInstallment;
+  const ratio = maxInstallment > 0 ? propertyInstallment / maxInstallment : Infinity;
 
   let status: LoanResult["status"] = "HIGH";
   if (ratio > 1) status = "LOW";
   else if (ratio > 0.9) status = "BORDERLINE";
 
-  const confidence = Math.max(0, Math.round((ratio) * 100));
+  const confidence = Number.isFinite(ratio)
+    ? Math.max(0, Math.round(ratio * 100))
+    : 100;
 
   return {
     netIncome: Math.round(netIncome),
@@ -43,13 +45,10 @@ export function calculateProfile(
     maxLoan: Math.round(maxLoan),
     propertyLoan: Math.round(propertyLoan),
     propertyInstallment: Math.round(propertyInstallment),
-
     tenureYears,
     interestRate: RATE,
     dsrLimit: DSR,
-
     confidence,
     status,
   };
-
 }

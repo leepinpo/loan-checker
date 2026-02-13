@@ -1,20 +1,11 @@
 import { useState } from "react";
 import { calculateProfile } from "../engine/loanEngine";
 import { simulateBanks } from "../engine/simulator";
+import type { LoanResult } from "../types/loan";
 
 type Deduction = { name: string; amount: number };
 
 export default function LoanForm() {
-
-  const totalDeductions = deductions.reduce(
-    (sum, d) => sum + (d.amount || 0),
-    0
-  );
-
-  const netIncome = grossIncome - totalDeductions;
-  const dsrLimit = 0.7;
-  const maxInstallment = netIncome * dsrLimit;
-
   const [grossIncome, setGrossIncome] = useState(0);
   const [age, setAge] = useState(30);
 
@@ -25,7 +16,14 @@ export default function LoanForm() {
     { name: "", amount: 0 },
   ]);
 
-  const [result, setResult] = useState<any>(null);
+  const [result, setResult] = useState<LoanResult | null>(null);
+  const [bankResults, setBankResults] = useState<any[]>([]);
+  const [showOnlyPass, setShowOnlyPass] = useState(false);
+
+  const totalDeductions = deductions.reduce((sum, d) => sum + (d.amount || 0), 0);
+  const netIncome = grossIncome - totalDeductions;
+  const dsrLimit = 0.7;
+  const maxInstallment = netIncome * dsrLimit;
 
   function updateDeduction(index: number, field: string, value: any) {
     const copy = [...deductions];
@@ -38,19 +36,19 @@ export default function LoanForm() {
   }
 
   function handleCalculate() {
-    const sims = simulateBanks(
-      { grossIncome, deductions, age },
-      { spaPrice, margin }
-    );
+    const inputCustomer = { grossIncome, deductions, age };
+    const inputProperty = { spaPrice, margin };
 
+    const sims = simulateBanks(inputCustomer, inputProperty);
     setBankResults(sims);
+
+    const profile = calculateProfile(inputCustomer, inputProperty);
+    setResult(profile);
   }
 
-  const [bankResults, setBankResults] = useState<any[]>([]);
-  const [showOnlyPass, setShowOnlyPass] = useState(false);
   const displayedBanks = showOnlyPass
-  ? bankResults.filter(b => b.verdict !== "LOW")
-  : bankResults;
+    ? bankResults.filter((b) => b.verdict !== "LOW")
+    : bankResults;
 
   return (
     <div style={{ maxWidth: 600 }}>
@@ -68,16 +66,12 @@ export default function LoanForm() {
         <div key={i}>
           <input
             placeholder="Name"
-            onChange={(e) =>
-              updateDeduction(i, "name", e.target.value)
-            }
+            onChange={(e) => updateDeduction(i, "name", e.target.value)}
           />
           <input
             placeholder="Amount"
             type="number"
-            onChange={(e) =>
-              updateDeduction(i, "amount", Number(e.target.value))
-            }
+            onChange={(e) => updateDeduction(i, "amount", Number(e.target.value))}
           />
         </div>
       ))}
@@ -93,10 +87,7 @@ export default function LoanForm() {
         onChange={(e) => setSpaPrice(Number(e.target.value))}
       />
 
-      <select
-        value={margin}
-        onChange={(e) => setMargin(Number(e.target.value))}
-      >
+      <select value={margin} onChange={(e) => setMargin(Number(e.target.value))}>
         <option value={0.9}>90%</option>
         <option value={0.85}>85%</option>
       </select>
@@ -133,10 +124,7 @@ export default function LoanForm() {
 
           <p>
             Requested property loan:
-            <strong>
-              {" "}
-              RM {(spaPrice * margin).toLocaleString()}
-            </strong>
+            <strong> RM {(spaPrice * margin).toLocaleString()}</strong>
           </p>
         </div>
       )}
@@ -171,9 +159,7 @@ export default function LoanForm() {
 
               <td>{b.assumptions.tenureYears} yrs</td>
 
-              <td>
-                {(b.assumptions.interestRate * 100).toFixed(2)}%
-              </td>
+              <td>{(b.assumptions.interestRate * 100).toFixed(2)}%</td>
 
               <td>RM {b.propertyInstallment.toLocaleString()}</td>
 
@@ -217,7 +203,6 @@ export default function LoanForm() {
           <p>DSR limit: {(result.dsrLimit * 100).toFixed(0)}%</p>
         </div>
       )}
-      
     </div>
   );
 }
