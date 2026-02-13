@@ -1,20 +1,10 @@
 import { useState } from "react";
-import { calculateProfile } from "../engine/loanEngine";
 import { simulateBanks } from "../engine/simulator";
 
 type Deduction = { name: string; amount: number };
 
-export default function LoanForm() {
-
-  const totalDeductions = deductions.reduce(
-    (sum, d) => sum + (d.amount || 0),
-    0
-  );
-
-  const netIncome = grossIncome - totalDeductions;
-  const dsrLimit = 0.7;
-  const maxInstallment = netIncome * dsrLimit;
-
+export default function LoanForm() { //edited 13.2.26 9:30pm
+  // --- state ---
   const [grossIncome, setGrossIncome] = useState(0);
   const [age, setAge] = useState(30);
 
@@ -25,8 +15,24 @@ export default function LoanForm() {
     { name: "", amount: 0 },
   ]);
 
-  const [result, setResult] = useState<any>(null);
+  const [bankResults, setBankResults] = useState<any[]>([]);
+  const [showOnlyPass, setShowOnlyPass] = useState(false);
 
+  // --- derived values ---
+  const totalDeductions = deductions.reduce(
+    (sum, d) => sum + (d.amount || 0),
+    0
+  );
+
+  const netIncome = Math.max(0, grossIncome - totalDeductions);
+  const dsrLimit = 0.7;
+  const maxInstallment = netIncome * dsrLimit;
+
+  const displayedBanks = showOnlyPass
+    ? bankResults.filter((b) => b.verdict !== "LOW")
+    : bankResults;
+
+  // --- handlers ---
   function updateDeduction(index: number, field: string, value: any) {
     const copy = [...deductions];
     copy[index] = { ...copy[index], [field]: value };
@@ -42,22 +48,17 @@ export default function LoanForm() {
       { grossIncome, deductions, age },
       { spaPrice, margin }
     );
-
     setBankResults(sims);
   }
 
-  const [bankResults, setBankResults] = useState<any[]>([]);
-  const [showOnlyPass, setShowOnlyPass] = useState(false);
-  const displayedBanks = showOnlyPass
-  ? bankResults.filter(b => b.verdict !== "LOW")
-  : bankResults;
-
+  // --- UI ---
   return (
-    <div style={{ maxWidth: 600 }}>
+    <div style={{ maxWidth: 650 }}>
       <h2>Loan Readiness Tool</h2>
 
       <h3>Income</h3>
       <input
+        value={grossIncome}
         placeholder="Gross income"
         type="number"
         onChange={(e) => setGrossIncome(Number(e.target.value))}
@@ -67,12 +68,14 @@ export default function LoanForm() {
       {deductions.map((d, i) => (
         <div key={i}>
           <input
+            value={d.name}
             placeholder="Name"
             onChange={(e) =>
               updateDeduction(i, "name", e.target.value)
             }
           />
           <input
+            value={d.amount}
             placeholder="Amount"
             type="number"
             onChange={(e) =>
@@ -84,10 +87,11 @@ export default function LoanForm() {
 
       <button onClick={addDeduction}>+ Add deduction</button>
 
-      <p>Net income: RM {netIncome}</p>
+      <p>Net income: RM {netIncome.toLocaleString()}</p>
 
       <h3>Property</h3>
       <input
+        value={spaPrice}
         placeholder="SPA price"
         type="number"
         onChange={(e) => setSpaPrice(Number(e.target.value))}
@@ -112,112 +116,89 @@ export default function LoanForm() {
       <button onClick={handleCalculate}>Calculate</button>
 
       {bankResults.length > 0 && (
-        <div
-          style={{
-            marginTop: 20,
-            padding: 12,
-            border: "2px solid #333",
-            background: "#f7f7f7",
-          }}
-        >
-          <h3>Customer Capacity Summary</h3>
+        <>
+          <div
+            style={{
+              marginTop: 20,
+              padding: 12,
+              border: "2px solid #333",
+              background: "#f7f7f7",
+            }}
+          >
+            <h3>Customer Capacity Summary</h3>
 
-          <p>Gross income: RM {grossIncome.toLocaleString()}</p>
-          <p>Total deductions: RM {totalDeductions.toLocaleString()}</p>
-          <p>Net income: RM {netIncome.toLocaleString()}</p>
+            <p>Gross income: RM {grossIncome.toLocaleString()}</p>
+            <p>Total deductions: RM {totalDeductions.toLocaleString()}</p>
+            <p>Net income: RM {netIncome.toLocaleString()}</p>
 
-          <p>
-            Max monthly installment capacity (70% DSR):
-            <strong> RM {Math.round(maxInstallment).toLocaleString()}</strong>
-          </p>
+            <p>
+              Max monthly installment capacity (70% DSR):
+              <strong>
+                {" "}
+                RM {Math.round(maxInstallment).toLocaleString()}
+              </strong>
+            </p>
 
-          <p>
-            Requested property loan:
-            <strong>
-              {" "}
-              RM {(spaPrice * margin).toLocaleString()}
-            </strong>
-          </p>
-        </div>
+            <p>
+              Requested property loan:
+              <strong>
+                {" "}
+                RM {(spaPrice * margin || 0).toLocaleString()}
+              </strong>
+            </p>
+          </div>
+
+          <label>
+            <input
+              type="checkbox"
+              checked={showOnlyPass}
+              onChange={(e) => setShowOnlyPass(e.target.checked)}
+            />
+            Show only likely approvals
+          </label>
+
+          <table border={1} cellPadding={6} style={{ marginTop: 20 }}>
+            <thead>
+              <tr>
+                <th>Bank</th>
+                <th>Loan Amount</th>
+                <th>Tenure</th>
+                <th>Interest</th>
+                <th>Monthly Installment</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+
+            <tbody>
+              {displayedBanks.map((b) => (
+                <tr key={b.bankId}>
+                  <td>{b.bankName}</td>
+                  <td>RM {b.propertyLoanAllowed.toLocaleString()}</td>
+                  <td>{b.assumptions.tenureYears} yrs</td>
+                  <td>
+                    {(b.assumptions.interestRate * 100).toFixed(2)}%
+                  </td>
+                  <td>RM {b.propertyInstallment.toLocaleString()}</td>
+                  <td>
+                    <strong
+                      style={{
+                        color:
+                          b.verdict === "HIGH"
+                            ? "green"
+                            : b.verdict === "BORDERLINE"
+                            ? "orange"
+                            : "red",
+                      }}
+                    >
+                      {b.verdict}
+                    </strong>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </>
       )}
-
-      <label>
-        <input
-          type="checkbox"
-          checked={showOnlyPass}
-          onChange={(e) => setShowOnlyPass(e.target.checked)}
-        />
-        Show only likely approvals
-      </label>
-
-      <table border={1} cellPadding={6} style={{ marginTop: 20 }}>
-        <thead>
-          <tr>
-            <th>Bank</th>
-            <th>Loan Amount</th>
-            <th>Tenure</th>
-            <th>Interest</th>
-            <th>Monthly Installment</th>
-            <th>Status</th>
-          </tr>
-        </thead>
-
-        <tbody>
-          {displayedBanks.map((b) => (
-            <tr key={b.bankId}>
-              <td>{b.bankName}</td>
-
-              <td>RM {b.propertyLoanAllowed.toLocaleString()}</td>
-
-              <td>{b.assumptions.tenureYears} yrs</td>
-
-              <td>
-                {(b.assumptions.interestRate * 100).toFixed(2)}%
-              </td>
-
-              <td>RM {b.propertyInstallment.toLocaleString()}</td>
-
-              <td>
-                <strong
-                  style={{
-                    color:
-                      b.verdict === "HIGH"
-                        ? "green"
-                        : b.verdict === "BORDERLINE"
-                        ? "orange"
-                        : "red",
-                  }}
-                >
-                  {b.verdict}
-                </strong>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-
-      {result && (
-        <div style={{ marginTop: 20, border: "1px solid #ccc", padding: 10 }}>
-          <h3>Approval Status: {result.status}</h3>
-
-          <p>Confidence: {result.confidence}%</p>
-
-          <h4>Customer Capacity</h4>
-          <p>Net income: RM {result.netIncome}</p>
-          <p>Max installment allowed: RM {result.maxInstallment}</p>
-          <p>Max loan supportable: RM {result.maxLoan}</p>
-
-          <h4>Property Requirement</h4>
-          <p>Required loan: RM {result.propertyLoan}</p>
-          <p>Estimated installment: RM {result.propertyInstallment}</p>
-
-          <h4>Assumptions Used</h4>
-          <p>Interest rate: {(result.interestRate * 100).toFixed(2)}%</p>
-          <p>Tenure: {result.tenureYears} years</p>
-          <p>DSR limit: {(result.dsrLimit * 100).toFixed(0)}%</p>
-        </div>
-      )}
-      
     </div>
   );
 }
